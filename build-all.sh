@@ -32,6 +32,7 @@ Usage: $0 [command] [options]
 
 Commands:
   all           Build everything (Kernel, Initramfs, Rootfs, QEMU, APK)
+  artifacts     Build raw artifacts only (vmlinuz+initrd, rootfs squashfs, QEMU .so) — no APK
   kernel        Build custom kernel only (podroid_kernel.config + Linux source)
   initramfs     Build custom kernel + Alpine VM initramfs (vmlinuz + initrd)
   rootfs        Build Alpine rootfs squashfs (alpine-rootfs.squashfs)
@@ -123,12 +124,6 @@ build_rootfs() {
     log "Building Alpine rootfs squashfs..."
     local sysver
     sysver=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' "${SCRIPT_DIR}/app/build.gradle.kts" | grep -oE '[0-9]+' | head -1)
-
-    # docs/guide/ lives outside build-rootfs/, the Docker build context below,
-    # so stage a fresh copy inside it for Dockerfile.rootfs to COPY in.
-    rm -rf "${SCRIPT_DIR}/build-rootfs/docs-guide"
-    mkdir -p "${SCRIPT_DIR}/build-rootfs/docs-guide"
-    cp "${SCRIPT_DIR}/docs/guide/"*.html "${SCRIPT_DIR}/docs/guide/style.css" "${SCRIPT_DIR}/build-rootfs/docs-guide/"
 
     docker build -f "${SCRIPT_DIR}/build-rootfs/Dockerfile.rootfs" \
         -t podroid-rootfs:latest \
@@ -258,7 +253,14 @@ case "$1" in
         build_initramfs
         build_rootfs
         build_qemu
-        build_apk
+        ;;
+    artifacts)
+        # docker-only fork: emit the raw artifacts (kernel+initrd, rootfs
+        # squashfs, QEMU .so set) without touching Gradle/APK. This is what
+        # the GitHub Actions workflow publishes.
+        build_initramfs
+        build_rootfs
+        build_qemu
         ;;
     clean)
         log "Cleaning up..."

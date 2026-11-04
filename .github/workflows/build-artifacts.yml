@@ -1,0 +1,68 @@
+name: build-artifacts
+
+# docker-only fork: builds the raw VM artifacts (kernel + initramfs, Alpine
+# rootfs squashfs, QEMU .so set) and publishes them as workflow artifacts.
+# No Gradle / no APK — this fork targets embedding the pieces into another
+# host app, not shipping Podroid's own UI.
+on:
+  push:
+    branches: [ docker-only ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      # The rootfs stages run arm64 containers (apk install into an aarch64
+      # rootfs). Register binfmt so those execute on the amd64 runner.
+      - name: Set up QEMU (arm64 binfmt)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Show docker info
+        run: docker info
+
+      - name: Build artifacts
+        run: |
+          chmod +x build-all.sh
+          ./build-all.sh artifacts 2>&1 | tee build.log
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p out
+          cp -v app/src/main/assets/vmlinuz-virt out/ || true
+          cp -v app/src/main/assets/initrd.img out/ || true
+          cp -v app/src/main/assets/alpine-rootfs.squashfs out/ || true
+          cp -v app/src/main/jniLibs/arm64-v8a/*.so out/ || true
+          ls -la out/
+          du -sh out/* || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: podroid-docker-only-artifacts
+          path: out/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: warn
+          retention-days: 7

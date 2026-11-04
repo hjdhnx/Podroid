@@ -37,9 +37,6 @@ ENV SYSTEM_VERSION=${SYSTEM_VERSION}
 
 ENV ALPINE_VERSION=${ALPINE_RELEASE}
 COPY files /work/files
-# Staged by build_rootfs() in build-all.sh (docs/ lives outside this build
-# context); served in-guest by /usr/local/bin/podroid-docs.
-COPY docs-guide /work/docs-guide
 COPY build-rootfs.sh /work/build-rootfs.sh
 RUN chmod +x /work/build-rootfs.sh && /work/build-rootfs.sh
 

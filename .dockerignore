@@ -1,0 +1,12 @@
+.git
+.github
+docs
+out
+build
+*.log
+*.7z
+*.tar
+min-rootfs/
+/.gradle
+**/build/
+app/build/

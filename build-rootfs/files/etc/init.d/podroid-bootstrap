@@ -130,28 +130,8 @@ start() {
     mkdir -p /mnt/persist/docker /var/lib/docker 2>/dev/null
     mountpoint -q /var/lib/docker || mount --bind /mnt/persist/docker /var/lib/docker
 
-    # Same trick for Podman. Without this its overlay graph driver works
-    # (image pulls succeed) but each `podman run` falls back to
-    # fuse-overlayfs for the container's runtime mount — kernel overlay
-    # can't stack on the rootfs overlay we live on. Pinning Podman's
-    # store onto raw ext4 lets the kernel overlay stack cleanly and
-    # gives container IO the same speed Docker enjoys.
-    mkdir -p /mnt/persist/containers /var/lib/containers/storage 2>/dev/null
-    mountpoint -q /var/lib/containers/storage \
-        || mount --bind /mnt/persist/containers /var/lib/containers/storage
-
-    # And for LXC. The overlay storage backend (`lxc-create -B overlayfs`)
-    # has the same nested-overlay problem; even the default `dir` backend
-    # benefits from raw-ext4 IO over going through the rootfs overlay.
-    mkdir -p /mnt/persist/lxc /var/lib/lxc 2>/dev/null
-    mountpoint -q /var/lib/lxc || mount --bind /mnt/persist/lxc /var/lib/lxc
-
-    # The lxc bridge (lxcbr0, 10.0.3.1/24) plus its MASQUERADE/DHCP are owned
-    # by the stock `dnsmasq.lxcbr0` service (rc_before=lxc), which creates the
-    # bridge, assigns the address, and installs NAT in its start_pre. We used
-    # to pre-create it here as well, but both running double-assigned the
-    # address ("ipv4: Address already assigned" in the boot log). /var/lib/lxc
-    # above is still ours to bind-mount.
+    # docker-only fork: podman and LXC are not installed, so their storage
+    # bind-mounts are gone too. Docker is the only container runtime here.
 
     eend 0
 }

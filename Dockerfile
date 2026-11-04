@@ -198,12 +198,14 @@ RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-
     && mkdir -p /iso && xorriso -osirrox on -indev alpine-virt-3.24.1-aarch64.iso -extract / /iso 2>/dev/null || true
 
 # Stage 2: Build the custom rootfs (aarch64) — no linux-virt; modules come from kernel-builder
+# docker-only fork: ttyd/podman/crun/fastfetch dropped. netavark+iptables+dropbear
+# stay — docker bridge networking and SSH access are core to the feature set.
 FROM --platform=linux/arm64/v8 alpine:3.24 AS rootfs-builder
 RUN apk update && apk add --no-cache \
-    bash busybox busybox-extras ttyd podman \
+    bash busybox busybox-extras \
     netavark aardvark-dns fuse-overlayfs slirp4netns iptables ip6tables \
-    shadow-uidmap ca-certificates crun curl e2fsprogs e2fsprogs-extra util-linux openrc \
-    dropbear ncurses-terminfo-base musl-locales kmod fastfetch
+    shadow-uidmap ca-certificates curl e2fsprogs e2fsprogs-extra util-linux openrc \
+    dropbear ncurses-terminfo-base musl-locales kmod
 COPY init-podroid /init
 RUN chmod +x /init
 RUN rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc

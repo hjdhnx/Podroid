@@ -21,10 +21,7 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     busybox-openrc \
     busybox-extras \
     bash \
-    podman \
     docker docker-openrc docker-cli-compose \
-    lxc lxc-templates lxc-download lxc-openrc lxc-bridge \
-    crun \
     fuse-overlayfs \
     iptables \
     ip6tables \
@@ -42,13 +39,7 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     doas sudo \
     gcompat \
     gzip \
-    xz \
-    tigervnc \
-    pulseaudio \
-    pulseaudio-utils \
-    font-misc-misc \
-    font-cursor-misc \
-    ttf-dejavu
+    xz
 
 # Apply file capabilities to newuidmap/newgidmap. apk's package install often
 # does this, but we set them explicitly so the squashfs ships with the
@@ -86,37 +77,27 @@ sed -i "s|^root:[^:]*:|root:${ROOT_HASH}:|" "$ROOTFS/etc/shadow"
 rm -rf "$ROOTFS/usr/share/man" "$ROOTFS/usr/share/doc" \
        "$ROOTFS/usr/share/locale" "$ROOTFS/usr/share/info"
 
-# Remove the stock pulseaudio OpenRC service. Podroid starts pulseaudio
-# directly from podroid-x11 (start-stop-daemon), never as a service; left in
-# place its depend() pulls in a non-existent "udev" service, so OpenRC logs
-# "Service 'pulseaudio' needs non existent service 'udev'" on every boot.
-rm -f "$ROOTFS/etc/init.d/pulseaudio"
+# docker-only fork: Podroid's GUI stack (X11/tigervnc/pulseaudio) and podman/lxc
+# are not installed above, so there is no pulseaudio service to remove and no
+# podman/LXC storage dirs to pre-create. Docker's own store is bind-mounted
+# onto the persistent ext4 by podroid-bootstrap, same as upstream.
 
-# Pre-create podman storage dirs (saves first-boot mkdir)
-mkdir -p "$ROOTFS/var/lib/containers/storage" \
-         "$ROOTFS/run/containers/storage" \
-         "$ROOTFS/run/libpod" \
-         "$ROOTFS/run/crun"
-
-# Copy custom service files into the rootfs
+# Copy custom service files into the rootfs (podroid-x11 omitted: GUI stack cut)
 cp /work/files/etc/init.d/podroid-bootstrap "$ROOTFS/etc/init.d/"
 cp /work/files/etc/init.d/podroid-network   "$ROOTFS/etc/init.d/"
 cp /work/files/etc/init.d/podroid-resize    "$ROOTFS/etc/init.d/"
 cp /work/files/etc/init.d/podroid-ready     "$ROOTFS/etc/init.d/"
-cp /work/files/etc/init.d/podroid-x11       "$ROOTFS/etc/init.d/"
 cp /work/files/etc/init.d/podroid-vsock     "$ROOTFS/etc/init.d/"
 cp /work/files/etc/init.d/podroid-hostd     "$ROOTFS/etc/init.d/"
-cp /work/files/etc/init.d/podroid-downloads "$ROOTFS/etc/init.d/"
 cp /work/files/etc/init.d/podroid-migrate   "$ROOTFS/etc/init.d/"
 chmod +x "$ROOTFS/etc/init.d/podroid-"*
 
-# Copy /usr/local/bin scripts (resize daemon + login wrapper + getty selector)
+# Copy /usr/local/bin scripts (resize daemon + login wrapper + getty selector;
+# podroid-backup and podroid-docs dropped with the GUI/docs features)
 mkdir -p "$ROOTFS/usr/local/bin"
 cp /work/files/usr/local/bin/podroid-resize "$ROOTFS/usr/local/bin/"
 cp /work/files/usr/local/bin/podroid-login  "$ROOTFS/usr/local/bin/"
 cp /work/files/usr/local/bin/podroid-getty  "$ROOTFS/usr/local/bin/"
-cp /work/files/usr/local/bin/podroid-backup "$ROOTFS/usr/local/bin/"
-cp /work/files/usr/local/bin/podroid-docs   "$ROOTFS/usr/local/bin/"
 # podroid-vsock-agent is COPY'd in from the vsock-builder Docker stage. Make
 # sure it's executable (cross-arch COPY can lose the mode bit on some buildkit
 # versions).
@@ -155,29 +136,18 @@ cp /work/files/etc/inittab "$ROOTFS/etc/inittab"
 cp /work/files/etc/rc.conf "$ROOTFS/etc/rc.conf"
 
 # /etc/profile.d/*.sh — sourced by Alpine's /etc/profile in login shells.
-# podroid-color.sh: COLORTERM=truecolor (24-bit color). podroid-x11.sh:
-# DISPLAY / PULSE_SERVER for the in-app GUI viewer. Copy by explicit name so
-# a renamed/removed asset fails the build (set -e) instead of silently
-# shipping a squashfs without these exports.
+# docker-only fork keeps podroid-color.sh (COLORTERM) and drops podroid-x11.sh
+# (DISPLAY / PULSE_SERVER are meaningless without the GUI stack).
 mkdir -p "$ROOTFS/etc/profile.d"
 cp /work/files/etc/profile.d/podroid-color.sh "$ROOTFS/etc/profile.d/"
-cp /work/files/etc/profile.d/podroid-x11.sh   "$ROOTFS/etc/profile.d/"
-chmod 0644 "$ROOTFS/etc/profile.d/podroid-color.sh" "$ROOTFS/etc/profile.d/podroid-x11.sh"
+chmod 0644 "$ROOTFS/etc/profile.d/podroid-color.sh"
 
-# /etc/containers/storage.conf — pin Podman to the in-kernel overlay driver.
-# Without this file, Podman auto-detects fuse-overlayfs (still apk-installed
-# as a fallback) and uses it, which is slower than native overlay.
+# /etc/containers/storage.conf — pin the container store to the in-kernel
+# overlay driver (docker-only fork keeps podman's config only as a harmless
+# leftover reference; nothing reads it because podman is not installed).
 mkdir -p "$ROOTFS/etc/containers"
 cp /work/files/etc/containers/storage.conf "$ROOTFS/etc/containers/storage.conf"
 chmod 0644 "$ROOTFS/etc/containers/storage.conf"
-
-# Offline copy of the docs/guide site, staged into /work/docs-guide by
-# build_rootfs() in build-all.sh (this must run after the "Strip docs" rm -rf
-# above, or mksquashfs would ship nothing here). Served in-guest by
-# podroid-docs.
-mkdir -p "$ROOTFS/usr/share/doc/podroid"
-cp /work/docs-guide/*.html /work/docs-guide/style.css "$ROOTFS/usr/share/doc/podroid/"
-chmod 0644 "$ROOTFS/usr/share/doc/podroid/"*
 
 # Hostname (read by podroid-bootstrap via `hostname -F /etc/hostname`)
 echo "podroid" > "$ROOTFS/etc/hostname"
@@ -203,7 +173,7 @@ mkdir -p "$ROOTFS/etc/runlevels/default" "$ROOTFS/etc/runlevels/boot"
 # Guard each link: a dangling symlink (e.g. dnsmasq.lxcbr0, which lxc-bridge
 # may ship only as dnsmasq config and not an init script) makes OpenRC log
 # an error every boot and stalls podroid-ready's `after *` on a phantom.
-for svc in podroid-migrate podroid-bootstrap podroid-network podroid-resize dropbear docker lxc dnsmasq.lxcbr0 podroid-x11 podroid-vsock podroid-downloads podroid-hostd podroid-ready; do
+for svc in podroid-migrate podroid-bootstrap podroid-network podroid-resize dropbear docker podroid-vsock podroid-hostd podroid-ready; do
     if [ -e "$ROOTFS/etc/init.d/$svc" ]; then
         ln -sf "/etc/init.d/$svc" "$ROOTFS/etc/runlevels/default/$svc"
     else
