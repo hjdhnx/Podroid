@@ -153,9 +153,6 @@ RUN cd linux-${KERNEL_VERSION} \
                   DECOMPRESS_ZSTD ZSTD_DECOMPRESS \
                   IKCONFIG IKCONFIG_PROC BINFMT_MISC \
                   VSOCKETS VIRTIO_VSOCKETS \
-                  RFKILL LEDS_CLASS CFG80211 MAC80211 RTW88 BT \
-                  USB USB_SUPPORT WLAN \
-                  RTW88_8821AU RTW88_8812AU RTW88_8814AU \
                   FW_LOADER_COMPRESS FW_LOADER_COMPRESS_ZSTD UNICODE \
                   USB_XHCI_HCD USB_XHCI_PCI USB_STORAGE USB_UAS \
                   SCSI BLK_DEV_SD VFAT_FS EXFAT_FS \
@@ -165,6 +162,21 @@ RUN cd linux-${KERNEL_VERSION} \
            grep -q "^CONFIG_${opt}=y\$" .config \
                || { echo "FATAL: CONFIG_${opt} is not =y after merge" >&2; \
                     grep "CONFIG_${opt}" .config >&2; exit 1; }; \
+       done \
+    && echo "=== verifying guest networking is virtio-net (not USB) ===" \
+    && for opt in VIRTIO VIRTIO_PCI VIRTIO_NET NET_9P NET_9P_VIRTIO 9P_FS; do \
+           grep -q "^CONFIG_${opt}=y\$" .config \
+               || { echo "FATAL: CONFIG_${opt} is not =y — guest networking would break" >&2; \
+                    grep "CONFIG_${opt}" .config >&2; exit 1; }; \
+       done \
+    && echo "=== verifying USB-wireless stack is OFF (docker-only fork) ===" \
+    && for opt in RFKILL WIRELESS CFG80211 MAC80211 WLAN BT SND SOUND \
+                  USB_NET_DRIVERS USB_USBNET MEDIA_SUPPORT USB_VIDEO_CLASS \
+                  USB_PRINTER; do \
+           if grep -qE "^CONFIG_${opt}=(y|m)\$" .config; then \
+               echo "FATAL: CONFIG_${opt} is still built (=y/=m) — USB wireless trim did not apply" >&2; \
+               grep "CONFIG_${opt}" .config >&2; exit 1; \
+           fi; \
        done \
     && echo "=== all critical options are built-in ===" \
     && make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image.gz modules
