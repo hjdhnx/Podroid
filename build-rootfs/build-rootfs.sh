@@ -151,6 +151,21 @@ mkdir -p "$ROOTFS/etc/containers"
 cp /work/files/etc/containers/storage.conf "$ROOTFS/etc/containers/storage.conf"
 chmod 0644 "$ROOTFS/etc/containers/storage.conf"
 
+# Docker registry mirror — baked in so `docker pull` works out of the box in
+# networks that can't reach registry-1.docker.io (devices in mainland CN, etc.).
+# docker.m.daocloud.io is fastest from CN networks; users can override by
+# editing this file or their own daemon.json (which takes precedence).
+mkdir -p "$ROOTFS/etc/docker"
+cat > "$ROOTFS/etc/docker/daemon.json" <<'EOF'
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1panel.live"
+  ]
+}
+EOF
+chmod 0644 "$ROOTFS/etc/docker/daemon.json"
+
 # Hostname (read by podroid-bootstrap via `hostname -F /etc/hostname`)
 echo "podroid" > "$ROOTFS/etc/hostname"
 echo "127.0.0.1 localhost podroid" > "$ROOTFS/etc/hosts"
