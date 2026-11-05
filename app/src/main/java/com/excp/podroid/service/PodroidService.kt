@@ -105,6 +105,7 @@ class PodroidService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var notificationJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
 
     private var notificationBuilder: NotificationCompat.Builder? = null
 
@@ -221,6 +222,24 @@ class PodroidService : Service() {
                 acquire() // VM must run indefinitely — timeout would kill it
             }
             Log.d(TAG, "WakeLock acquired")
+
+            // Hold a high-perf WiFi lock while the VM runs. PARTIAL_WAKE_LOCK
+            // keeps the CPU awake but does NOT stop the radio from sleeping on
+            // screen-off: on Doze/App-Standby the phone can drop WiFi throughput
+            // or the data path entirely, which makes a background docker/SSH/
+            // port-forward session unreachable from outside. This lock keeps the
+            // WiFi link at full rate so the guest stays reachable. Released
+            // together with the WakeLock in teardown (no exit-path change).
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE)
+                    as android.net.wifi.WifiManager
+            wifiLock = wm.createWifiLock(
+                android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                "Podroid::VmWifiLock"
+            ).apply {
+                @SuppressLint("WakelockTimeout")
+                acquire()
+            }
+            Log.d(TAG, "WiFiLock acquired")
         }
     }
 
@@ -232,6 +251,14 @@ class PodroidService : Service() {
             }
         }
         wakeLock = null
+
+        wifiLock?.let {
+            if (it.isHeld) {
+                it.release()
+                Log.d(TAG, "WiFiLock released")
+            }
+        }
+        wifiLock = null
     }
 
     private fun startNotificationUpdates() {

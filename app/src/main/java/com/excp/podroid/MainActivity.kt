@@ -2,6 +2,7 @@ package com.excp.podroid
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,6 +39,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) {
             handleStartVmIntent(intent)
+        }
+        // Ask once to be exempted from battery optimization, so Doze / App-Standby
+        // doesn't background-kill or throttle the running VM (docker/SSH/port-forward
+        // staying reachable after the screen turns off). No-op if already exempt.
+        if (savedInstanceState == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestIgnoreBatteryOptimizationsIfNeeded()
         }
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
@@ -111,6 +118,31 @@ class MainActivity : ComponentActivity() {
     private fun handleStartVmIntent(intent: Intent?) {
         if (intent?.action == VmControlReceiver.ACTION_START_VM) {
             PodroidService.start(this)
+        }
+    }
+
+    /**
+     * One-time request to have Android ignore battery optimization for this app
+     * (Doze / App-Standby exemption). The VM runs a long-lived foreground QEMU;
+     * without this exemption the OS may background-kill or throttle it once the
+     * screen is off, making docker/SSH/port-forward unreachable from outside.
+     * No-op when already exempt (no user prompt). Uses the regular settings
+     * intent so it works on all Android M+ devices.
+     */
+    private fun requestIgnoreBatteryOptimizationsIfNeeded() {
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            if (pm.isIgnoringBatteryOptimizations(packageName)) return
+            val intent = Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
+        } catch (e: Exception) {
+            // Some OEMs (MIUI/HyperOS) block ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+            // or the deep-links to a settings page. This is non-fatal — the user can
+            // exempt the app manually, and the WiFi lock still guards the network.
+            android.util.Log.w("MainActivity", "battery-optimization request failed", e)
         }
     }
 }

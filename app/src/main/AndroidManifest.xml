@@ -21,6 +21,15 @@
     <!-- Keep CPU awake while VM is running -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Keep WiFi at full rate while the VM runs (background docker/SSH reachable
+         on screen-off — PARTIAL_WAKE_LOCK alone does not stop the radio sleeping) -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Ask the OS to ignore battery optimization for this app so Doze/App-Standby
+         does not background-kill or throttle the running VM -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Terminal bell haptic feedback (used by Termux terminal view) -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
