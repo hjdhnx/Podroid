@@ -198,17 +198,20 @@ RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-
     && mkdir -p /iso && xorriso -osirrox on -indev alpine-virt-3.24.1-aarch64.iso -extract / /iso 2>/dev/null || true
 
 # Stage 2: Build the custom rootfs (aarch64) — no linux-virt; modules come from kernel-builder
-# docker-only fork: ttyd/podman/crun/fastfetch dropped. netavark+iptables+dropbear
-# stay — docker bridge networking and SSH access are core to the feature set.
+# docker-only fork: this stage produces the INITRAMFS contents only (it boots,
+# mounts the squashfs, switch_roots and is gone). Anything that belongs on the
+# running system lives in build-rootfs/ instead — keeping packages here was
+# shipping ~17 MB of iptables/netavark/dropbear/openrc that the initramfs never
+# calls. Trimmed to what init-podroid actually invokes: busybox (mount/
+# switch_root/sh/dd/seq/awk), e2fsprogs (e2fsck/mke2fs/resize2fs), kmod
+# (depmod/modprobe), util-linux (mount/switch_root).
 FROM --platform=linux/arm64/v8 alpine:3.24 AS rootfs-builder
 RUN apk update && apk add --no-cache \
-    bash busybox busybox-extras \
-    netavark aardvark-dns fuse-overlayfs slirp4netns iptables ip6tables \
-    shadow-uidmap ca-certificates curl e2fsprogs e2fsprogs-extra util-linux openrc \
-    dropbear ncurses-terminfo-base musl-locales kmod
+    busybox busybox-extras e2fsprogs e2fsprogs-extra util-linux kmod
 COPY init-podroid /init
 RUN chmod +x /init
-RUN rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc
+RUN rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/locale /usr/share/info \
+    && find / -xdev -type f -name '*.a' -delete 2>/dev/null || true
 
 # Stage 3: Pack Initramfs
 FROM alpine:3.24 AS packer
@@ -341,6 +344,14 @@ RUN cp /opt/qemu-out/bin/qemu-system-aarch64 /opt/qemu-out/libqemu-system-aarch6
     && cp /opt/qemu-out/lib/libslirp.so.0 /opt/qemu-out/libslirp.so \
     && patchelf --set-soname libslirp.so /opt/qemu-out/libslirp.so \
     && patchelf --replace-needed libslirp.so.0 libslirp.so /opt/qemu-out/libqemu-system-aarch64.so
+
+# Strip debug info. The unstripped .so is ~125 MB, of which ~85 MB is
+# .debug_* + .symtab/.strtab — none of it is needed at runtime. After
+# --strip-debug --strip-unneeded the file is ~37 MB (measured), and gzip
+# brings it to ~7 MB. This is the single biggest size win in the fork.
+RUN ${LLVM}/bin/llvm-strip --strip-debug --strip-unneeded /opt/qemu-out/libqemu-system-aarch64.so \
+    && ${LLVM}/bin/llvm-strip --strip-debug --strip-unneeded /opt/qemu-out/libslirp.so \
+    && ls -la /opt/qemu-out/libqemu-system-aarch64.so /opt/qemu-out/libslirp.so
 
 # ==============================================================================
 # SECTION 3: Final Artifacts Stage

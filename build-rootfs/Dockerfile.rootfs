@@ -40,10 +40,15 @@ COPY files /work/files
 COPY build-rootfs.sh /work/build-rootfs.sh
 RUN chmod +x /work/build-rootfs.sh && /work/build-rootfs.sh
 
+# Squashfs compression tuning (measured): the default 128K block gives 97 MB
+# for this rootfs; 1M blocks give 70.5 MB (better dictionary reuse across the
+# large docker/containerd binaries). Cost: a mount-time decompression read is
+# up to 1 MB, which is irrelevant for a VM with page cache. xz would reach
+# ~66 MB but the kernel config only ships CONFIG_SQUASHFS_ZSTD, so stay zstd.
 RUN mksquashfs /work/rootfs /work/alpine-rootfs.squashfs \
-    -comp zstd -Xcompression-level 19 -all-root -noappend
-# (No -no-xattrs: rootless podman's newuidmap/newgidmap need their
-# file capabilities preserved; they're stored as security.capability xattr.)
+    -comp zstd -Xcompression-level 19 -b 1048576 -all-root -noappend
+# (No -no-xattrs: the docker/containerd file capabilities live in
+# security.capability xattrs and must survive packing.)
 
 FROM scratch AS export
 COPY --from=builder /work/alpine-rootfs.squashfs /alpine-rootfs.squashfs

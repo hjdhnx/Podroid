@@ -22,7 +22,6 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     busybox-extras \
     bash \
     docker docker-openrc docker-cli-compose \
-    fuse-overlayfs \
     iptables \
     ip6tables \
     nftables \
@@ -32,19 +31,17 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     openssh-sftp-server \
     curl \
     ca-certificates \
-    shadow shadow-uidmap \
-    slirp4netns \
-    aardvark-dns netavark \
+    shadow \
     libcap-utils \
     doas sudo \
     gcompat \
     gzip \
     xz
 
-# Apply file capabilities to newuidmap/newgidmap. apk's package install often
-# does this, but we set them explicitly so the squashfs ships with the
-# correct security.capability xattr (preserved by mksquashfs without -no-xattrs).
-if command -v setcap >/dev/null 2>&1; then
+# docker-only fork: newuidmap/newgidmap come from shadow-uidmap, which is not
+# installed (this VM runs dockerd as root, so rootless uid mapping is unused).
+# Guarded so a future reinstall of shadow-uidmap gets its caps automatically.
+if command -v setcap >/dev/null 2>&1 && [ -x "$ROOTFS/usr/bin/newuidmap" ]; then
     setcap cap_setuid+ep "$ROOTFS/usr/bin/newuidmap"
     setcap cap_setgid+ep "$ROOTFS/usr/bin/newgidmap"
 fi
@@ -77,10 +74,15 @@ sed -i "s|^root:[^:]*:|root:${ROOT_HASH}:|" "$ROOTFS/etc/shadow"
 rm -rf "$ROOTFS/usr/share/man" "$ROOTFS/usr/share/doc" \
        "$ROOTFS/usr/share/locale" "$ROOTFS/usr/share/info"
 
-# docker-only fork: Podroid's GUI stack (X11/tigervnc/pulseaudio) and podman/lxc
-# are not installed above, so there is no pulseaudio service to remove and no
-# podman/LXC storage dirs to pre-create. Docker's own store is bind-mounted
+# docker-only fork: Podroid's GUI stack (X11/tigervnc/pulseaudio), podman and
+# lxc are not installed above, so there is no pulseaudio service to remove and
+# no podman/LXC storage dirs to pre-create. Docker's own store is bind-mounted
 # onto the persistent ext4 by podroid-bootstrap, same as upstream.
+
+# docker-buildx ships a 67 MB (89 MB unpacked) multi-arch builder that this VM
+# never needs (docker compose is kept, buildx is not). Dropping it is the second
+# biggest size win after stripping QEMU.
+rm -f "$ROOTFS/usr/libexec/docker/cli-plugins/docker-buildx"
 
 # Copy custom service files into the rootfs (podroid-x11 omitted: GUI stack cut)
 cp /work/files/etc/init.d/podroid-bootstrap "$ROOTFS/etc/init.d/"
