@@ -22,7 +22,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.excp.podroid"
+        // docker-only fork: renamed to DsPlayer's namespace so it can coexist
+        // with the upstream Podroid app on the same device.
+        applicationId = "com.dsplayer.vm"
         minSdk = 26
         targetSdk = 36
         versionCode = 34
@@ -39,12 +41,21 @@ android {
 
     signingConfigs {
         create("release") {
+            // docker-only fork: unsigned builds are not installable, and a fresh
+            // keystore is overkill for an artifact meant to be embedded/verified.
+            // Fall back to the standard debug keystore. If PODROID_RELEASE_*
+            // properties are provided they still win.
             val storePath = (project.findProperty("PODROID_RELEASE_STORE_FILE") as? String)
             if (storePath != null && file(storePath).exists()) {
                 storeFile     = file(storePath)
                 storePassword = project.findProperty("PODROID_RELEASE_STORE_PASSWORD") as? String
                 keyAlias      = project.findProperty("PODROID_RELEASE_KEY_ALIAS")      as? String
                 keyPassword   = project.findProperty("PODROID_RELEASE_KEY_PASSWORD")   as? String
+            } else {
+                storeFile     = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias      = "androiddebugkey"
+                keyPassword   = "android"
             }
         }
     }
