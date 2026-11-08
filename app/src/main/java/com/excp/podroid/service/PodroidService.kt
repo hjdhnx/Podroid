@@ -19,9 +19,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -106,6 +108,8 @@ class PodroidService : Service() {
     private var notificationJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
+    private var floatingBall: FloatingBall? = null
+    private var overlayPermissionAsked = false
 
     private var notificationBuilder: NotificationCompat.Builder? = null
 
@@ -240,6 +244,12 @@ class PodroidService : Service() {
                 acquire()
             }
             Log.d(TAG, "WiFiLock acquired")
+
+            // Foreground-visible keep-alive (see FloatingBall): OEM background CPU
+            // quotas can cut the VM to ~1/20 speed once the app is not visible.
+            // Shown/hidden paired with the locks so every start/stop/teardown path
+            // stays in sync (no exit-path change).
+            maybeShowFloatingBall()
         }
     }
 
@@ -259,6 +269,35 @@ class PodroidService : Service() {
             }
         }
         wifiLock = null
+
+        floatingBall?.hide()
+    }
+
+    /**
+     * Show the keep-alive overlay dot while the VM runs (setting-gated, default
+     * on). Without the overlay permission, ask once per process — the user just
+     * started the VM and is present to answer. Background starts (boot receiver)
+     * can't launch the settings screen; the intent no-ops there and the next
+     * manual start asks again.
+     */
+    private fun maybeShowFloatingBall() {
+        serviceScope.launch {
+            if (!settingsRepository.getFloatingBallEnabledSnapshot()) return@launch
+            val ball = floatingBall ?: FloatingBall(applicationContext).also { floatingBall = it }
+            if (ball.canShow()) {
+                ball.show()
+            } else if (!overlayPermissionAsked) {
+                overlayPermissionAsked = true
+                runCatching {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName"),
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+        }
     }
 
     private fun startNotificationUpdates() {

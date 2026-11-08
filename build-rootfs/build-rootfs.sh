@@ -21,7 +21,7 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     busybox-openrc \
     busybox-extras \
     bash \
-    docker docker-openrc docker-cli-compose \
+    docker docker-openrc docker-cli-compose docker-cli-buildx \
     iptables \
     ip6tables \
     nftables \
@@ -79,10 +79,11 @@ rm -rf "$ROOTFS/usr/share/man" "$ROOTFS/usr/share/doc" \
 # no podman/LXC storage dirs to pre-create. Docker's own store is bind-mounted
 # onto the persistent ext4 by podroid-bootstrap, same as upstream.
 
-# docker-buildx ships a 67 MB (89 MB unpacked) multi-arch builder that this VM
-# never needs (docker compose is kept, buildx is not). Dropping it is the second
-# biggest size win after stripping QEMU.
-rm -f "$ROOTFS/usr/libexec/docker/cli-plugins/docker-buildx"
+# docker-cli-buildx is intentionally KEPT (see the package list above). Trimming
+# it forced `docker build` to fall back to the deprecated legacy builder, which
+# rejects BuildKit-only Dockerfile syntax (--mount, heredocs, syntax frontends) —
+# i.e. "modern build environments report incompatibilities and downgrade". The
+# ~35 MB squashfs cost is the price of out-of-the-box image builds.
 
 # Copy custom service files into the rootfs (podroid-x11 omitted: GUI stack cut)
 cp /work/files/etc/init.d/podroid-bootstrap "$ROOTFS/etc/init.d/"

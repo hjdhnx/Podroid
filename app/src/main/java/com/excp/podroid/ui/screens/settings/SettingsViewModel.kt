@@ -226,6 +226,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAutostartOnBoot(value) }
     }
 
+    val floatingBallEnabled: StateFlow<Boolean> = settingsRepository.floatingBallEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setFloatingBallEnabled(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setFloatingBallEnabled(value) }
+    }
+
     suspend fun setLanguage(value: String) {
         Log.d(TAG, "setLanguage: $value")
         languageManager.setLanguage(value)

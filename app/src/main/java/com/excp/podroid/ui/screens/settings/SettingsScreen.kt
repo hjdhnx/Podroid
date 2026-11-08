@@ -122,6 +122,7 @@ fun SettingsScreen(
     val portForwardPartialWarning by viewModel.portForwardPartialWarning.collectAsStateWithLifecycle()
     val usbPassthrough by viewModel.usbPassthroughEnabled.collectAsStateWithLifecycle()
     val autostartOnBoot by viewModel.autostartOnBoot.collectAsStateWithLifecycle()
+    val floatingBallEnabled by viewModel.floatingBallEnabled.collectAsStateWithLifecycle()
 
     // rememberSaveable: changing the language calls activity.recreate(), which
     // would otherwise silently close any open dialog and collapse Advanced.
@@ -252,6 +253,8 @@ fun SettingsScreen(
                     onStorageSizeChange = viewModel::setStorageSizeGb,
                     autostartOnBoot = autostartOnBoot,
                     onAutostartChange = viewModel::setAutostartOnBoot,
+                    floatingBallEnabled = floatingBallEnabled,
+                    onFloatingBallChange = viewModel::setFloatingBallEnabled,
                 )
 
                 // ── NETWORK ───────────────────────────────────────────
@@ -505,6 +508,8 @@ private fun VmResourcesSection(
     onStorageSizeChange: (Int) -> Unit,
     autostartOnBoot: Boolean,
     onAutostartChange: (Boolean) -> Unit,
+    floatingBallEnabled: Boolean,
+    onFloatingBallChange: (Boolean) -> Unit,
 ) {
     PodroidSectionLabel(stringResource(R.string.vm_resources))
     if (!vmNotRunning) {
@@ -559,6 +564,26 @@ private fun VmResourcesSection(
     )
     Text(
         text = stringResource(R.string.autostart_on_boot_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(
+            start = PodroidTokens.Spacing.MD,
+            end = PodroidTokens.Spacing.MD,
+            bottom = PodroidTokens.Spacing.SM,
+        ),
+    )
+    PodroidListRow(
+        label = stringResource(R.string.floating_ball),
+        onClick = { onFloatingBallChange(!floatingBallEnabled) },
+        rightSlot = {
+            PodroidSwitch(
+                checked = floatingBallEnabled,
+                onCheckedChange = onFloatingBallChange,
+            )
+        },
+    )
+    Text(
+        text = stringResource(R.string.floating_ball_desc),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(

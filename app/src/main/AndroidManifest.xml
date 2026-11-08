@@ -30,6 +30,11 @@
          does not background-kill or throttle the running VM -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Keep-alive overlay dot (FloatingBall): while the VM runs it keeps the app
+         foreground-visible, which exempts the process from OEM background CPU
+         quota tiers (measured ~1/20 CPU on MIUI without it) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Terminal bell haptic feedback (used by Termux terminal view) -->
     <uses-permission android:name="android.permission.VIBRATE" />
 

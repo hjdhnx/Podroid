@@ -27,8 +27,10 @@ android {
         applicationId = "com.dsplayer.vm"
         minSdk = 26
         targetSdk = 36
-        versionCode = 34
-        versionName = "1.3.0"
+        // docker-only fork versioning: versionName tracks the market release
+        // (docker-vm-1.1.0), versionCode strictly increases for upgrade installs.
+        versionCode = 35
+        versionName = "1.1.0"
         buildConfigField("String", "QEMU_VERSION", "\"$podroidQemuVersion\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
