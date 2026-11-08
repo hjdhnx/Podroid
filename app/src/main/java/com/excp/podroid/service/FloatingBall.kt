@@ -49,7 +49,7 @@ class FloatingBall(private val context: Context) {
             contentDescription = "Podroid keep-alive"
         }
         val params = WindowManager.LayoutParams(
-            dp(20), dp(20),
+            dp(20f), dp(20f),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
