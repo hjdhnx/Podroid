@@ -282,6 +282,11 @@ class PodroidService : Service() {
      */
     private fun maybeShowFloatingBall() {
         serviceScope.launch {
+            // This coroutine may run after an immediate STOP already tore down the
+            // locks — never show a dot for a VM that is no longer starting/running.
+            val active = engine.state.value is VmState.Starting ||
+                engine.state.value is VmState.Running
+            if (!active) return@launch
             if (!settingsRepository.getFloatingBallEnabledSnapshot()) return@launch
             val ball = floatingBall ?: FloatingBall(applicationContext).also { floatingBall = it }
             if (ball.canShow()) {

@@ -6,7 +6,6 @@
  */
 package com.excp.podroid.service
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -36,7 +35,6 @@ class FloatingBall(private val context: Context) {
     fun canShow(): Boolean = Settings.canDrawOverlays(context)
 
     /** Idempotent; call from a thread with a main looper (WindowManager requires one). */
-    @SuppressLint("InflateParams")
     fun show() {
         if (view != null || !canShow()) return
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -59,9 +57,10 @@ class FloatingBall(private val context: Context) {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
         }
         dot.setOnClickListener {
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            launch?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            runCatching { context.startActivity(launch) }
+            context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                runCatching { context.startActivity(launch) }
+            }
         }
         runCatching { wm.addView(dot, params) }
             .onSuccess { view = dot }
